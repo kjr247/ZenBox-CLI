@@ -213,6 +213,7 @@ def main():
     email_ids = fetch_email_ids(service, args.max_emails)
     t1 = time.time()
     print(f"Fetched {len(email_ids)} emails in {t1-t0:.2f} seconds. Parsing senders...")
+    print(f"DEBUG: Total unread email IDs fetched: {len(email_ids)}")
     sender_counts, sender_first_msg = count_senders(service, email_ids)
     t2 = time.time()
     print(f"Parsed senders in {t2-t1:.2f} seconds.\nTop {TOP_N_SENDERS} senders:\n")

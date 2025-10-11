@@ -1,3 +1,5 @@
+# Exclude any file with 'secret' in the name
+*secret*
 .history
 token.pickle
 # Byte-compiled / optimized / DLL files

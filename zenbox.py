@@ -114,7 +114,7 @@ def count_senders(service, email_ids: List[str]) -> Dict[str, int]:
     """Count emails per sender."""
     sender_counts = collections.Counter()
     import time
-    batch_size = 10
+    batch_size = 20
     def make_callback(sender_counts):
         def callback(request_id, response, exception):
             if exception is not None:

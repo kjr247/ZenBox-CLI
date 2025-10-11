@@ -113,9 +113,10 @@ def display_unsubscribe_links_for_unread(service, max_search: int = 100):
 def count_senders(service, email_ids: List[str]) -> Dict[str, int]:
     """Count emails per sender."""
     sender_counts = collections.Counter()
+    sender_first_msg = {}
     import time
     batch_size = 20
-    def make_callback(sender_counts):
+    def make_callback(sender_counts, sender_first_msg):
         def callback(request_id, response, exception):
             if exception is not None:
                 print(f"Error parsing message {request_id}: {exception}", file=sys.stderr)
@@ -127,36 +128,29 @@ def count_senders(service, email_ids: List[str]) -> Dict[str, int]:
                         sender = header['value']
                         break
                 sender_counts[sender] += 1
+                # Only record the first message id for each sender
+                if sender not in sender_first_msg:
+                    sender_first_msg[sender] = request_id
         return callback
 
     batch_uri = 'https://gmail.googleapis.com/batch/gmail/v1'
     for i in range(0, len(email_ids), batch_size):
-        batch = BatchHttpRequest(batch_uri=batch_uri, callback=make_callback(sender_counts))
+        batch = BatchHttpRequest(batch_uri=batch_uri, callback=make_callback(sender_counts, sender_first_msg))
         for msg_id in email_ids[i:i+batch_size]:
             batch.add(service.users().messages().get(userId='me', id=msg_id, format='metadata', metadataHeaders=['From']), request_id=msg_id)
         batch.execute()
         now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         print(f"[{now}] Processed {min(i+batch_size, len(email_ids))} emails...", file=sys.stderr)
         time.sleep(1)
-    return sender_counts
+    return sender_counts, sender_first_msg
 
 
-def display_top_senders_with_unsub(service, email_ids: list, sender_counts: Dict[str, int], top_n: int):
+def display_top_senders_with_unsub(service, sender_counts: Dict[str, int], sender_first_msg: dict, top_n: int):
     """Display the top N senders in a table, including the first unsubscribe link from the already fetched unread emails."""
     import time
     sorted_senders = sender_counts.most_common(top_n)
     sender_unsub = {sender: '' for sender, _ in sorted_senders}
-    sender_set = set(sender_unsub.keys())
-    # Map sender to first message id
-    sender_first_msg = {}
-    for msg_id in email_ids:
-        sender = parse_sender_from_message(service, msg_id)
-        if sender in sender_set and sender not in sender_first_msg:
-            sender_first_msg[sender] = msg_id
-        if len(sender_first_msg) == len(sender_set):
-            break
-
-    # Batch fetch List-Unsubscribe headers for first message of each top sender
+    # Only fetch unsubscribe links for top N senders using their first message
     batch_size = 10
     batch_uri = 'https://gmail.googleapis.com/batch/gmail/v1'
     def make_callback(sender_unsub):
@@ -178,17 +172,14 @@ def display_top_senders_with_unsub(service, email_ids: list, sender_counts: Dict
                             break
         return callback
 
-    sender_to_unsub = {sender: '' for sender in sender_first_msg}
-    msg_ids = list(sender_first_msg.values())
+    msg_ids = [(sender, sender_first_msg[sender]) for sender in sender_unsub if sender in sender_first_msg]
     for i in range(0, len(msg_ids), batch_size):
-        batch = BatchHttpRequest(batch_uri=batch_uri, callback=make_callback(sender_to_unsub))
-        for sender, msg_id in list(sender_first_msg.items())[i:i+batch_size]:
+        batch = BatchHttpRequest(batch_uri=batch_uri, callback=make_callback(sender_unsub))
+        for sender, msg_id in msg_ids[i:i+batch_size]:
             batch.add(service.users().messages().get(userId='me', id=msg_id, format='metadata', metadataHeaders=['List-Unsubscribe']), request_id=sender)
         batch.execute()
         time.sleep(1)
-    # Fill sender_unsub with batch results
-    for sender in sender_unsub:
-        sender_unsub[sender] = sender_to_unsub.get(sender, '')
+
     console = Console()
     table = Table(title=f"Top {top_n} Senders (Unread Emails)")
     table.add_column("Sender", style="cyan", no_wrap=True)
@@ -222,11 +213,11 @@ def main():
     email_ids = fetch_email_ids(service, args.max_emails)
     t1 = time.time()
     print(f"Fetched {len(email_ids)} emails in {t1-t0:.2f} seconds. Parsing senders...")
-    sender_counts = count_senders(service, email_ids)
+    sender_counts, sender_first_msg = count_senders(service, email_ids)
     t2 = time.time()
     print(f"Parsed senders in {t2-t1:.2f} seconds.\nTop {TOP_N_SENDERS} senders:\n")
     t3 = time.time()
-    display_top_senders_with_unsub(service, email_ids, sender_counts, TOP_N_SENDERS)
+    display_top_senders_with_unsub(service, sender_counts, sender_first_msg, TOP_N_SENDERS)
     t4 = time.time()
     print(f"Displayed results in {t4-t3:.2f} seconds. Total time: {t4-t0:.2f} seconds.")
 

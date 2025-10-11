@@ -183,16 +183,19 @@ def main():
         display_unsubscribe_links_for_unread(service, args.max_unsubscribe)
         return
 
+    import time
+    t0 = time.time()
     print("Fetching email IDs...")
     email_ids = fetch_email_ids(service, args.max_emails)
-    if not email_ids:
-        sys.exit("No emails found.")
-    print(f"Fetched {len(email_ids)} emails. Parsing senders...")
+    t1 = time.time()
+    print(f"Fetched {len(email_ids)} emails in {t1-t0:.2f} seconds. Parsing senders...")
     sender_counts = count_senders(service, email_ids)
-    if not sender_counts:
-        sys.exit("No senders found.")
-    print(f"\nTop {TOP_N_SENDERS} senders:\n")
+    t2 = time.time()
+    print(f"Parsed senders in {t2-t1:.2f} seconds.\nTop {TOP_N_SENDERS} senders:\n")
+    t3 = time.time()
     display_top_senders_with_unsub(service, email_ids, sender_counts, TOP_N_SENDERS)
+    t4 = time.time()
+    print(f"Displayed results in {t4-t3:.2f} seconds. Total time: {t4-t0:.2f} seconds.")
 
 if __name__ == '__main__':
     main()

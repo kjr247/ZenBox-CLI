@@ -1,5 +1,7 @@
 
-# Gmail Top Senders Analyzer
+This script fetches your recent unread emails from Gmail and displays a ranked list of senders by the number of emails received, including unsubscribe links if available.
+
+# Zenbox Email Analyzer
 
 This script fetches your recent unread emails from Gmail and displays a ranked list of senders by the number of emails received, including unsubscribe links if available.
 
@@ -20,7 +22,7 @@ This script fetches your recent unread emails from Gmail and displays a ranked l
    - Click "+ CREATE CREDENTIALS" and choose "OAuth client ID"
    - If prompted, configure the consent screen (fill in required fields)
    - For "Application type", select **Desktop app**
-   - Name it (e.g., "Gmail Top Senders")
+   - Name it (e.g., "Zenbox Email Analyzer")
    - Click "Create"
    - Click "Download JSON" on the credentials you just created
    - Save the file as `credentials.json` (or update the script to use your filename) in this directory
@@ -31,7 +33,7 @@ This script fetches your recent unread emails from Gmail and displays a ranked l
 4. **Run the script**
    - In your terminal, run:
      ```bash
-     python gmail_top_senders.py
+         python zenbox.py
      ```
    - The first time, a browser window will open for you to log in and authorize access to your Gmail account.
 
@@ -47,12 +49,12 @@ You can control the script's behavior with these flags:
 
 Show top senders from up to 500 unread emails:
 ```bash
-python gmail_top_senders.py --max-emails 500
+python zenbox.py --max-emails 500
 ```
 
 Show unsubscribe links for up to 200 unread emails:
 ```bash
-python gmail_top_senders.py --show-unsubscribe --max-unsubscribe 200
+python zenbox.py --show-unsubscribe --max-unsubscribe 200
 ```
 
 ## Notes

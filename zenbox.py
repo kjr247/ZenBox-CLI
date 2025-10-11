@@ -143,19 +143,52 @@ def count_senders(service, email_ids: List[str]) -> Dict[str, int]:
 
 def display_top_senders_with_unsub(service, email_ids: list, sender_counts: Dict[str, int], top_n: int):
     """Display the top N senders in a table, including the first unsubscribe link from the already fetched unread emails."""
+    import time
     sorted_senders = sender_counts.most_common(top_n)
     sender_unsub = {sender: '' for sender, _ in sorted_senders}
     sender_set = set(sender_unsub.keys())
+    # Map sender to first message id
+    sender_first_msg = {}
     for msg_id in email_ids:
         sender = parse_sender_from_message(service, msg_id)
-        if sender in sender_set and not sender_unsub[sender]:
-            link_header = get_unsubscribe_link_from_message(service, msg_id)
-            if link_header:
-                links = [l.strip(' <>') for l in link_header.split(',')]
-                for link in links:
-                    if link.startswith('http') or link.startswith('mailto:'):
-                        sender_unsub[sender] = link
+        if sender in sender_set and sender not in sender_first_msg:
+            sender_first_msg[sender] = msg_id
+        if len(sender_first_msg) == len(sender_set):
+            break
+
+    # Batch fetch List-Unsubscribe headers for first message of each top sender
+    batch_size = 10
+    batch_uri = 'https://gmail.googleapis.com/batch/gmail/v1'
+    def make_callback(sender_unsub):
+        def callback(request_id, response, exception):
+            if exception is not None:
+                print(f"Error fetching unsubscribe for {request_id}: {exception}", file=sys.stderr)
+            else:
+                headers = response.get('payload', {}).get('headers', [])
+                link_header = None
+                for header in headers:
+                    if header['name'].lower() == 'list-unsubscribe':
+                        link_header = header['value']
                         break
+                if link_header:
+                    links = [l.strip(' <>') for l in link_header.split(',')]
+                    for link in links:
+                        if link.startswith('http') or link.startswith('mailto:'):
+                            sender_unsub[request_id] = link
+                            break
+        return callback
+
+    sender_to_unsub = {sender: '' for sender in sender_first_msg}
+    msg_ids = list(sender_first_msg.values())
+    for i in range(0, len(msg_ids), batch_size):
+        batch = BatchHttpRequest(batch_uri=batch_uri, callback=make_callback(sender_to_unsub))
+        for sender, msg_id in list(sender_first_msg.items())[i:i+batch_size]:
+            batch.add(service.users().messages().get(userId='me', id=msg_id, format='metadata', metadataHeaders=['List-Unsubscribe']), request_id=sender)
+        batch.execute()
+        time.sleep(1)
+    # Fill sender_unsub with batch results
+    for sender in sender_unsub:
+        sender_unsub[sender] = sender_to_unsub.get(sender, '')
     console = Console()
     table = Table(title=f"Top {top_n} Senders (Unread Emails)")
     table.add_column("Sender", style="cyan", no_wrap=True)

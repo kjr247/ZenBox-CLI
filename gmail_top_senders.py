@@ -3,6 +3,7 @@
 
 import os
 import sys
+from concurrent.futures import ThreadPoolExecutor, as_completed
 import collections
 from typing import List, Dict
 from rich.console import Console
@@ -14,8 +15,9 @@ import pickle
 import argparse
 from datetime import datetime
 
-# Constants
-SCOPES = ['https://www.googleapis.com/auth/gmail.readonly']
+SCOPES = [
+    'https://www.googleapis.com/auth/gmail.modify'
+]
 CREDENTIALS_FILE = 'ZenboxDesktop.client_secret_339182038683-r3aqgdrhqt30uk8on0na17upm31p8upe.apps.googleusercontent.com.json'
 TOKEN_FILE = 'token.pickle'
 MAX_EMAILS = 1000
@@ -112,16 +114,25 @@ def display_unsubscribe_links_for_unread(service, max_search: int = 100):
 def count_senders(service, email_ids: List[str]) -> Dict[str, int]:
     """Count emails per sender."""
     sender_counts = collections.Counter()
+    sender_to_ids = {}
+    total = len(email_ids)
     for idx, msg_id in enumerate(email_ids, 1):
         try:
-            sender = parse_sender_from_message(service, msg_id)
-            sender_counts[sender] += 1
+            msg = service.users().messages().get(userId='me', id=msg_id, format='metadata', metadataHeaders=['From']).execute()
+            headers = msg.get('payload', {}).get('headers', [])
+            sender = None
+            for h in headers:
+                if h['name'].lower() == 'from':
+                    sender = h['value']
+                    break
+            if sender:
+                sender_counts[sender] = sender_counts.get(sender, 0) + 1
+                sender_to_ids[msg_id] = sender
         except Exception as e:
-            print(f"Error parsing message {msg_id}: {e}", file=sys.stderr)
-        if idx % 100 == 0:
-            now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-            print(f"[{now}] Processed {idx} emails...", file=sys.stderr)
-    return sender_counts
+            print(f"Error fetching message {msg_id}: {e}")
+        if idx % 100 == 0 or idx == total:
+            print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] Processed {idx} emails...")
+    return sender_counts, sender_to_ids
 
 
 def display_top_senders_with_unsub(service, email_ids: list, sender_counts: Dict[str, int], top_n: int):
@@ -145,12 +156,65 @@ def display_top_senders_with_unsub(service, email_ids: list, sender_counts: Dict
     table.add_column("Email Count", style="magenta", justify="right")
     table.add_column("Unsubscribe Link", style="green")
 
-    for sender, count in sorted_senders:
+    for idx, (sender, count) in enumerate(sorted_senders, 1):
         unsub = sender_unsub[sender] if sender_unsub[sender] else "-"
-        table.add_row(sender, str(count), unsub)
+        table.add_row(f"{idx}. {sender}", str(count), unsub)
 
     console.clear()
     console.print(table)
+
+    # Interactive selection to mark emails as unread
+    try:
+        selection = input("\nEnter comma-separated numbers of senders to mark ALL their emails as unread (or press Enter to skip): ").strip()
+        if selection:
+            indices = [int(x) for x in selection.split(",") if x.strip().isdigit()]
+            selected_senders = [sorted_senders[i-1][0] for i in indices if 1 <= i <= len(sorted_senders)]
+            if selected_senders:
+                print(f"Marking all emails from: {', '.join(selected_senders)} as unread...")
+                mark_senders_unread(service, selected_senders)
+            else:
+                print("No valid senders selected.")
+    except Exception as e:
+        print(f"Error in selection: {e}")
+
+def mark_senders_unread(service, senders: list):
+    """Mark all emails from the given senders as unread."""
+    import time
+    for sender in senders:
+        print(f"Finding emails from: {sender}")
+        start = time.time()
+        query = f"from:{sender}"
+        email_ids = []
+        next_page_token = None
+        while True:
+            response = service.users().messages().list(
+                userId='me',
+                q=query,
+                maxResults=500,
+                pageToken=next_page_token
+            ).execute()
+            ids = [msg['id'] for msg in response.get('messages', [])]
+            email_ids.extend(ids)
+            next_page_token = response.get('nextPageToken')
+            if not next_page_token or not ids:
+                break
+            print(f"  Found {len(email_ids)} emails. Marking as read...")
+        if email_ids:
+            batch_size = 100
+            for i in range(0, len(email_ids), batch_size):
+                batch = email_ids[i:i+batch_size]
+                service.users().messages().batchModify(
+                    userId='me',
+                    body={
+                        'ids': batch,
+                        'addLabelIds': [],
+                        'removeLabelIds': ['UNREAD']
+                    }
+                ).execute()
+                print(f"    Marked {i+len(batch)} of {len(email_ids)} as read.")
+                time.sleep(0.5)
+        end = time.time()
+        print(f"Done marking {sender} emails as read. Took {end - start:.2f} seconds.\n")
 
 def main():
     """Main execution flow."""
@@ -171,7 +235,11 @@ def main():
     if not email_ids:
         sys.exit("No emails found.")
     print(f"Fetched {len(email_ids)} emails. Parsing senders...")
-    sender_counts = count_senders(service, email_ids)
+    import time
+    start_parse = time.time()
+    sender_counts, sender_to_ids = count_senders(service, email_ids)
+    end_parse = time.time()
+    print(f"Sender parsing took {end_parse - start_parse:.2f} seconds.")
     if not sender_counts:
         sys.exit("No senders found.")
     print(f"\nTop {TOP_N_SENDERS} senders:\n")

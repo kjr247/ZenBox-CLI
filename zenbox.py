@@ -3,8 +3,8 @@
 
 import os
 import sys
+from concurrent.futures import ThreadPoolExecutor, as_completed
 import collections
-from googleapiclient.http import BatchHttpRequest
 from typing import List, Dict
 from rich.console import Console
 from rich.table import Table
@@ -15,8 +15,9 @@ import pickle
 import argparse
 from datetime import datetime
 
-# Constants
-SCOPES = ['https://www.googleapis.com/auth/gmail.readonly']
+SCOPES = [
+    'https://www.googleapis.com/auth/gmail.modify'
+]
 CREDENTIALS_FILE = 'ZenboxDesktop.client_secret_339182038683-r3aqgdrhqt30uk8on0na17upm31p8upe.apps.googleusercontent.com.json'
 TOKEN_FILE = 'token.pickle'
 MAX_EMAILS = 1000
@@ -113,85 +114,163 @@ def display_unsubscribe_links_for_unread(service, max_search: int = 100):
 def count_senders(service, email_ids: List[str]) -> Dict[str, int]:
     """Count emails per sender."""
     sender_counts = collections.Counter()
-    sender_first_msg = {}
-    import time
-    batch_size = 20
-    def make_callback(sender_counts, sender_first_msg):
-        def callback(request_id, response, exception):
-            if exception is not None:
-                print(f"Error parsing message {request_id}: {exception}", file=sys.stderr)
-            else:
-                headers = response.get('payload', {}).get('headers', [])
-                sender = 'Unknown'
-                for header in headers:
-                    if header['name'].lower() == 'from':
-                        sender = header['value']
-                        break
-                sender_counts[sender] += 1
-                # Only record the first message id for each sender
-                if sender not in sender_first_msg:
-                    sender_first_msg[sender] = request_id
-        return callback
-
-    batch_uri = 'https://gmail.googleapis.com/batch/gmail/v1'
-    for i in range(0, len(email_ids), batch_size):
-        batch = BatchHttpRequest(batch_uri=batch_uri, callback=make_callback(sender_counts, sender_first_msg))
-        for msg_id in email_ids[i:i+batch_size]:
-            batch.add(service.users().messages().get(userId='me', id=msg_id, format='metadata', metadataHeaders=['From']), request_id=msg_id)
-        batch.execute()
-        now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-        print(f"[{now}] Processed {min(i+batch_size, len(email_ids))} emails...", file=sys.stderr)
-        time.sleep(1)
-    return sender_counts, sender_first_msg
+    sender_to_ids = {}
+    total = len(email_ids)
+    for idx, msg_id in enumerate(email_ids, 1):
+        try:
+            msg = service.users().messages().get(userId='me', id=msg_id, format='metadata', metadataHeaders=['From']).execute()
+            headers = msg.get('payload', {}).get('headers', [])
+            sender = None
+            for h in headers:
+                if h['name'].lower() == 'from':
+                    sender = h['value']
+                    break
+            if sender:
+                sender_counts[sender] = sender_counts.get(sender, 0) + 1
+                sender_to_ids[msg_id] = sender
+        except Exception as e:
+            print(f"Error fetching message {msg_id}: {e}")
+        if idx % 100 == 0 or idx == total:
+            print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] Processed {idx} emails...")
+    return sender_counts, sender_to_ids
 
 
-def display_top_senders_with_unsub(service, sender_counts: Dict[str, int], sender_first_msg: dict, top_n: int):
+def display_top_senders_with_unsub(service, email_ids: list, sender_counts: Dict[str, int], top_n: int):
     """Display the top N senders in a table, including the first unsubscribe link from the already fetched unread emails."""
-    import time
     sorted_senders = sender_counts.most_common(top_n)
     sender_unsub = {sender: '' for sender, _ in sorted_senders}
-    # Only fetch unsubscribe links for top N senders using their first message
-    batch_size = 10
-    batch_uri = 'https://gmail.googleapis.com/batch/gmail/v1'
-    def make_callback(sender_unsub):
-        def callback(request_id, response, exception):
-            if exception is not None:
-                print(f"Error fetching unsubscribe for {request_id}: {exception}", file=sys.stderr)
-            else:
-                headers = response.get('payload', {}).get('headers', [])
-                link_header = None
-                for header in headers:
-                    if header['name'].lower() == 'list-unsubscribe':
-                        link_header = header['value']
+    # For each email, if sender is in top N, try to get the unsubscribe link
+    for msg_id in email_ids:
+        sender = parse_sender_from_message(service, msg_id)
+        if sender in sender_unsub and not sender_unsub[sender]:
+            link_header = get_unsubscribe_link_from_message(service, msg_id)
+            if link_header:
+                links = [l.strip(' <>') for l in link_header.split(',')]
+                for link in links:
+                    if link.startswith('http') or link.startswith('mailto:'):
+                        sender_unsub[sender] = link
                         break
-                if link_header:
-                    links = [l.strip(' <>') for l in link_header.split(',')]
-                    for link in links:
-                        if link.startswith('http') or link.startswith('mailto:'):
-                            sender_unsub[request_id] = link
-                            break
-        return callback
+    def print_table():
+        console = Console()
+        table = Table(title=f"Top {top_n} Senders (Unread Emails)")
+        table.add_column("Sender", style="cyan", no_wrap=True)
+        table.add_column("Email Count", style="magenta", justify="right")
+        table.add_column("Unsubscribe Link", style="green")
+        for idx, (sender, count) in enumerate(sorted_senders, 1):
+            unsub = sender_unsub[sender] if sender_unsub[sender] else "-"
+            table.add_row(f"{idx}. {sender}", str(count), unsub)
+        console.clear()
+        console.print(table)
 
-    msg_ids = [(sender, sender_first_msg[sender]) for sender in sender_unsub if sender in sender_first_msg]
-    for i in range(0, len(msg_ids), batch_size):
-        batch = BatchHttpRequest(batch_uri=batch_uri, callback=make_callback(sender_unsub))
-        for sender, msg_id in msg_ids[i:i+batch_size]:
-            batch.add(service.users().messages().get(userId='me', id=msg_id, format='metadata', metadataHeaders=['List-Unsubscribe']), request_id=sender)
-        batch.execute()
-        time.sleep(1)
+    print_table()
+    # Unified prompt for all actions
+    while True:
+        user_input = input(
+            "\nOptions: [r]efresh table, [u] mark ALL as unread, comma-separated numbers to mark as read, or Enter to continue: "
+        ).strip().lower()
+        if user_input == 'r':
+            print_table()
+            continue
+        elif user_input == 'u':
+            # Mark all top senders as unread
+            all_senders = [sender for sender, _ in sorted_senders]
+            print(f"Marking all emails from: {', '.join(all_senders)} as unread...")
+            mark_senders_unread(service, all_senders)
+            break
+        elif user_input == '':
+            break
+        else:
+            # Try to parse as comma-separated numbers for marking as read
+            try:
+                indices = [int(x) for x in user_input.split(",") if x.strip().isdigit()]
+                selected_senders = [sorted_senders[i-1][0] for i in indices if 1 <= i <= len(sorted_senders)]
+                if selected_senders:
+                    print(f"Marking all emails from: {', '.join(selected_senders)} as read...")
+                    mark_senders_read(service, selected_senders)
+                else:
+                    print("No valid senders selected.")
+            except Exception as e:
+                print(f"Error in selection: {e}")
+            break
 
-    console = Console()
-    table = Table(title=f"Top {top_n} Senders (Unread Emails)")
-    table.add_column("Sender", style="cyan", no_wrap=True)
-    table.add_column("Email Count", style="magenta", justify="right")
-    table.add_column("Unsubscribe Link", style="green")
 
-    for sender, count in sorted_senders:
-        unsub = sender_unsub[sender] if sender_unsub[sender] else "-"
-        table.add_row(sender, str(count), unsub)
+def mark_senders_unread(service, senders: list):
+    """Mark all emails from the given senders as unread (add 'UNREAD' label)."""
+    import time
+    for sender in senders:
+        print(f"Finding emails from: {sender}")
+        start = time.time()
+        query = f"from:{sender}"
+        email_ids = []
+        next_page_token = None
+        while True:
+            response = service.users().messages().list(
+                userId='me',
+                q=query,
+                maxResults=500,
+                pageToken=next_page_token
+            ).execute()
+            ids = [msg['id'] for msg in response.get('messages', [])]
+            email_ids.extend(ids)
+            next_page_token = response.get('nextPageToken')
+            if not next_page_token or not ids:
+                break
+        print(f"  Found {len(email_ids)} emails. Marking as unread...")
+        if email_ids:
+            batch_size = 100
+            for i in range(0, len(email_ids), batch_size):
+                batch = email_ids[i:i+batch_size]
+                service.users().messages().batchModify(
+                    userId='me',
+                    body={
+                        'ids': batch,
+                        'addLabelIds': ['UNREAD'],
+                        'removeLabelIds': []
+                    }
+                ).execute()
+                print(f"    Marked {i+len(batch)} of {len(email_ids)} as unread.")
+                time.sleep(0.5)
+        end = time.time()
+        print(f"Done marking {sender} emails as unread. Took {end - start:.2f} seconds.\n")
 
-    console.clear()
-    console.print(table)
+def mark_senders_read(service, senders: list):
+    """Mark all emails from the given senders as read (remove 'UNREAD' label)."""
+    import time
+    for sender in senders:
+        print(f"Finding emails from: {sender}")
+        start = time.time()
+        query = f"from:{sender}"
+        email_ids = []
+        next_page_token = None
+        while True:
+            response = service.users().messages().list(
+                userId='me',
+                q=query,
+                maxResults=500,
+                pageToken=next_page_token
+            ).execute()
+            ids = [msg['id'] for msg in response.get('messages', [])]
+            email_ids.extend(ids)
+            next_page_token = response.get('nextPageToken')
+            if not next_page_token or not ids:
+                break
+        print(f"  Found {len(email_ids)} emails. Marking as read...")
+        if email_ids:
+            batch_size = 100
+            for i in range(0, len(email_ids), batch_size):
+                batch = email_ids[i:i+batch_size]
+                service.users().messages().batchModify(
+                    userId='me',
+                    body={
+                        'ids': batch,
+                        'addLabelIds': [],
+                        'removeLabelIds': ['UNREAD']
+                    }
+                ).execute()
+                print(f"    Marked {i+len(batch)} of {len(email_ids)} as read.")
+                time.sleep(0.5)
+        end = time.time()
+        print(f"Done marking {sender} emails as read. Took {end - start:.2f} seconds.\n")
 
 def main():
     """Main execution flow."""
@@ -207,20 +286,20 @@ def main():
         display_unsubscribe_links_for_unread(service, args.max_unsubscribe)
         return
 
-    import time
-    t0 = time.time()
     print("Fetching email IDs...")
     email_ids = fetch_email_ids(service, args.max_emails)
-    t1 = time.time()
-    print(f"Fetched {len(email_ids)} emails in {t1-t0:.2f} seconds. Parsing senders...")
-    print(f"DEBUG: Total unread email IDs fetched: {len(email_ids)}")
-    sender_counts, sender_first_msg = count_senders(service, email_ids)
-    t2 = time.time()
-    print(f"Parsed senders in {t2-t1:.2f} seconds.\nTop {TOP_N_SENDERS} senders:\n")
-    t3 = time.time()
-    display_top_senders_with_unsub(service, sender_counts, sender_first_msg, TOP_N_SENDERS)
-    t4 = time.time()
-    print(f"Displayed results in {t4-t3:.2f} seconds. Total time: {t4-t0:.2f} seconds.")
+    if not email_ids:
+        sys.exit("No emails found.")
+    print(f"Fetched {len(email_ids)} emails. Parsing senders...")
+    import time
+    start_parse = time.time()
+    sender_counts, sender_to_ids = count_senders(service, email_ids)
+    end_parse = time.time()
+    print(f"Sender parsing took {end_parse - start_parse:.2f} seconds.")
+    if not sender_counts:
+        sys.exit("No senders found.")
+    print(f"\nTop {TOP_N_SENDERS} senders:\n")
+    display_top_senders_with_unsub(service, email_ids, sender_counts, TOP_N_SENDERS)
 
 if __name__ == '__main__':
     main()

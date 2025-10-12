@@ -166,7 +166,7 @@ def display_top_senders_with_unsub(service, email_ids: list, sender_counts: Dict
     while True:
         print_table()
         user_input = input(
-            "\nOptions: [r]efresh table, [u] mark ALL as unread, or comma-separated numbers to mark as read, Enter to continue: "
+            "\nOptions: [r]efresh table, [u] mark ALL as unread, [e] escape, or comma-separated numbers to mark as read, Enter to continue: "
         ).strip().lower()
         if user_input == 'r':
             continue
@@ -174,6 +174,9 @@ def display_top_senders_with_unsub(service, email_ids: list, sender_counts: Dict
             all_senders = [sender for sender, _ in sorted_senders]
             print(f"Marking all emails from: {', '.join(all_senders)} as unread...")
             mark_senders_unread(service, all_senders)
+            break
+        elif user_input == 'e':
+            print("Exiting...")
             break
         elif user_input == '':
             break

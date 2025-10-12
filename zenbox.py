@@ -163,16 +163,15 @@ def display_top_senders_with_unsub(service, email_ids: list, sender_counts: Dict
         console.print(table)
 
     print_table()
-    # Unified prompt for all actions
+    # Unified prompt for all actions: only handle r, u, comma-separated numbers, or Enter
     while True:
         user_input = input(
-            "\nOptions: [r]efresh table, [u] mark ALL as unread, comma-separated numbers to mark as read, or Enter to continue: "
+            "\nOptions: [r]efresh table, [u] mark ALL as unread, or comma-separated numbers to mark as read, Enter to continue: "
         ).strip().lower()
         if user_input == 'r':
             print_table()
             continue
         elif user_input == 'u':
-            # Mark all top senders as unread
             all_senders = [sender for sender, _ in sorted_senders]
             print(f"Marking all emails from: {', '.join(all_senders)} as unread...")
             mark_senders_unread(service, all_senders)
@@ -180,7 +179,7 @@ def display_top_senders_with_unsub(service, email_ids: list, sender_counts: Dict
         elif user_input == '':
             break
         else:
-            # Try to parse as comma-separated numbers for marking as read
+            # Only allow comma-separated numbers for marking as read
             try:
                 indices = [int(x) for x in user_input.split(",") if x.strip().isdigit()]
                 selected_senders = [sorted_senders[i-1][0] for i in indices if 1 <= i <= len(sorted_senders)]

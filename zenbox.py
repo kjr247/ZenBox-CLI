@@ -163,14 +163,12 @@ def display_top_senders_with_unsub(service, email_ids: list, sender_counts: Dict
         console.clear()
         console.print(table)
 
-    print_table()
-    # Unified prompt for all actions: only handle r, u, comma-separated numbers, or Enter
     while True:
+        print_table()
         user_input = input(
             "\nOptions: [r]efresh table, [u] mark ALL as unread, or comma-separated numbers to mark as read, Enter to continue: "
         ).strip().lower()
         if user_input == 'r':
-            print_table()
             continue
         elif user_input == 'u':
             all_senders = [sender for sender, _ in sorted_senders]
@@ -195,11 +193,18 @@ def display_top_senders_with_unsub(service, email_ids: list, sender_counts: Dict
                                 print(f"Failed to open unsubscribe link for {sender}: {e}")
                     print(f"Marking all emails from: {', '.join(selected_senders)} as read...")
                     mark_senders_read(service, selected_senders)
+                    # Remove marked senders from sorted_senders and sender_unsub
+                    sorted_senders = [(s, c) for (s, c) in sorted_senders if s not in selected_senders]
+                    for s in selected_senders:
+                        sender_unsub.pop(s, None)
+                    if not sorted_senders:
+                        print("No more senders to display.")
+                        break
                 else:
                     print("No valid senders selected.")
             except Exception as e:
                 print(f"Error in selection: {e}")
-            break
+            # Loop continues, reprinting updated table
 
 
 def mark_senders_unread(service, senders: list):

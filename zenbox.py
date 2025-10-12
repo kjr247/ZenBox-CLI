@@ -13,6 +13,7 @@ from google_auth_oauthlib.flow import InstalledAppFlow
 from google.auth.transport.requests import Request
 import pickle
 import argparse
+import webbrowser
 from datetime import datetime
 
 SCOPES = [
@@ -184,6 +185,14 @@ def display_top_senders_with_unsub(service, email_ids: list, sender_counts: Dict
                 indices = [int(x) for x in user_input.split(",") if x.strip().isdigit()]
                 selected_senders = [sorted_senders[i-1][0] for i in indices if 1 <= i <= len(sorted_senders)]
                 if selected_senders:
+                    for sender in selected_senders:
+                        unsub_link = sender_unsub.get(sender)
+                        if unsub_link and unsub_link != "-":
+                            print(f"Opening unsubscribe link for {sender}: {unsub_link}")
+                            try:
+                                webbrowser.open(unsub_link)
+                            except Exception as e:
+                                print(f"Failed to open unsubscribe link for {sender}: {e}")
                     print(f"Marking all emails from: {', '.join(selected_senders)} as read...")
                     mark_senders_read(service, selected_senders)
                 else:

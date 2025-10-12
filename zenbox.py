@@ -163,11 +163,12 @@ def display_top_senders_with_unsub(service, email_ids: list, sender_counts: Dict
         console.clear()
         console.print(table)
 
+    unsubscribe_active = True
     while True:
         print_table()
-        user_input = input(
-            "\nOptions: [r]efresh table, [u] mark ALL as unread, [e] escape, or comma-separated numbers to mark as read, Enter to continue: "
-        ).strip().lower()
+        prompt = ("\nOptions: [r]efresh table, [u] mark ALL as unread, [e] escape, [t] toggle unsubscribe (currently "
+                  f"{'ON' if unsubscribe_active else 'OFF'}" + "), or comma-separated numbers to mark as read, Enter to continue: ")
+        user_input = input(prompt).strip().lower()
         if user_input == 'r':
             continue
         elif user_input == 'u':
@@ -178,6 +179,10 @@ def display_top_senders_with_unsub(service, email_ids: list, sender_counts: Dict
         elif user_input == 'e':
             print("Exiting...")
             break
+        elif user_input == 't':
+            unsubscribe_active = not unsubscribe_active
+            print(f"Unsubscribe is now {'ON' if unsubscribe_active else 'OFF'}.")
+            continue
         elif user_input == '':
             break
         else:
@@ -189,7 +194,7 @@ def display_top_senders_with_unsub(service, email_ids: list, sender_counts: Dict
                     import time
                     for sender in selected_senders:
                         unsub_link = sender_unsub.get(sender)
-                        if unsub_link and unsub_link != "-":
+                        if unsubscribe_active and unsub_link and unsub_link != "-":
                             print(f"Opening unsubscribe link for {sender}: {unsub_link}")
                             try:
                                 webbrowser.open(unsub_link)

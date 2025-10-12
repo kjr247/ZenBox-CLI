@@ -153,8 +153,8 @@ def display_top_senders_with_unsub(service, email_ids: list, sender_counts: Dict
     def print_table():
         console = Console()
         table = Table(title=f"Top {top_n} Senders (Unread Emails)")
-        table.add_column("Sender", style="cyan", no_wrap=True)
-        table.add_column("Email Count", style="magenta", justify="right")
+        table.add_column("Sender", style="cyan", no_wrap=True, width=100)
+        table.add_column("Count", style="magenta", justify="right")
         table.add_column("Unsubscribe Link", style="green")
         for idx, (sender, count) in enumerate(sorted_senders, 1):
             unsub = sender_unsub[sender] if sender_unsub[sender] else "-"

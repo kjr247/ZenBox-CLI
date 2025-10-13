@@ -1,6 +1,11 @@
 # Zenbox Email Analyzer
 
->This script fetches your recent unread emails from Gmail and displays a ranked list of senders by the number of emails received, including unsubscribe links if available. You can batch mark emails as read, open unsubscribe links, and more.
+>This script fetches your recent unread emails from Gmail and displays a ranked list of senders by the number of emails received, including unsubscribe links if available. You can batch mark emails as read, open unsubscribe links, automatically send unsubscribe emails with emailto: links (if you do 100 and 50 are emails and 50 are websites, it will send and open 50 each. If you want to do this, plan to let your browser get spammed with open unsubscribe windows), and more!
+
+![alt text](image-1.png)
+
+(Optionally) You can use [Coins CLI / jgl (jingle)](https://github.com/kjr247/CoinsCLI) for audible feedback when you run long running scripts.
+![alt text](image.png)
 
 ---
 

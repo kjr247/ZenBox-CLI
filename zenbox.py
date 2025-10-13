@@ -194,7 +194,7 @@ def display_top_senders_with_unsub(service, email_ids: list, sender_counts: Dict
     def print_table():
         console = Console()
         table = Table(title=f"Top {top_n} Senders (Unread Emails)")
-        table.add_column("Sender", style="cyan", no_wrap=True, width=100)
+        table.add_column("Sender", style="cyan", no_wrap=True, width=80)
         table.add_column("Count", style="magenta", justify="right")
         table.add_column("Unsubscribe Link", style="green")
         for idx, (sender, count) in enumerate(sorted_senders, 1):
@@ -208,7 +208,7 @@ def display_top_senders_with_unsub(service, email_ids: list, sender_counts: Dict
     unsubscribe_active = True
     while True:
         print_table()
-        prompt = ("\nOptions: [r]efresh table, [a] mark ALL as read, [e] escape, [t] toggle unsubscribe (currently "
+        prompt = ("\nOptions: [r]efresh table, [a] mark ALL as read (and unsubscribe), [e] escape, [t] toggle unsubscribe (currently "
                   f"{'ON' if unsubscribe_active else 'OFF'}" + "), or comma-separated numbers to mark as read, Enter to continue: ")
         user_input = input(prompt).strip().lower()
         if user_input == 'r':

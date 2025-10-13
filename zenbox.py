@@ -178,7 +178,7 @@ def display_top_senders_with_unsub(service, email_ids: list, sender_counts: Dict
         except Exception as e:
             print(f"Failed to send unsubscribe email to {to_addr}: {e}")
     """Display the top N senders in a table, including the first unsubscribe link from the already fetched unread emails."""
-    sorted_senders = sender_counts.most_common(top_n)
+    sorted_senders = list(reversed(sender_counts.most_common(top_n)))
     sender_unsub = {sender: '' for sender, _ in sorted_senders}
     # For each email, if sender is in top N, try to get the unsubscribe link
     for msg_id in email_ids:
@@ -199,7 +199,9 @@ def display_top_senders_with_unsub(service, email_ids: list, sender_counts: Dict
         table.add_column("Unsubscribe Link", style="green")
         for idx, (sender, count) in enumerate(sorted_senders, 1):
             unsub = sender_unsub[sender] if sender_unsub[sender] else "-"
-            table.add_row(f"{idx}. {sender}", str(count), unsub)
+            # Invert the numbering: 100 at top, 1 at bottom
+            display_idx = top_n - idx + 1
+            table.add_row(f"{display_idx}. {sender}", str(count), unsub)
         console.clear()
         console.print(table)
 
@@ -229,7 +231,8 @@ def display_top_senders_with_unsub(service, email_ids: list, sender_counts: Dict
             # Only allow comma-separated numbers for marking as read
             try:
                 indices = [int(x) for x in user_input.split(",") if x.strip().isdigit()]
-                selected_senders = [sorted_senders[i-1][0] for i in indices if 1 <= i <= len(sorted_senders)]
+                # Since the display is inverted, map 100 to index 0, 99 to 1, etc.
+                selected_senders = [sorted_senders[top_n - i][0] for i in indices if 1 <= i <= len(sorted_senders)]
                 if selected_senders:
                     import time
                     for sender in selected_senders:

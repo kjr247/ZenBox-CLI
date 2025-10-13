@@ -110,9 +110,10 @@ python zenbox.py --show-unsubscribe --max-unsubscribe 200
 - The script only processes unread emails by default.
 - The output table includes the sender, email count, and the first unsubscribe link found for each sender (if available).
 
-## Buy Me A Coffee
+## ☕💛☕🤝Buy Me A Coffee
 
 If you found some value here, please consider fueling new features or the next project! Feel free to leave me a note and some coffee dollars go a long way!
 
-- [Buy Me A Coffee](https://buymeacoffee.com/kylebuilds)
+- [☕💛☕🤝 Buy Me A Coffee](https://buymeacoffee.com/kylebuilds)
+
 

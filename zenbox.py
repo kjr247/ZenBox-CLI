@@ -166,12 +166,12 @@ def display_top_senders_with_unsub(service, email_ids: list, sender_counts: Dict
     unsubscribe_active = True
     while True:
         print_table()
-        prompt = ("\nOptions: [r]efresh table, [u] mark ALL as read, [e] escape, [t] toggle unsubscribe (currently "
+        prompt = ("\nOptions: [r]efresh table, [a] mark ALL as read, [e] escape, [t] toggle unsubscribe (currently "
                   f"{'ON' if unsubscribe_active else 'OFF'}" + "), or comma-separated numbers to mark as read, Enter to continue: ")
         user_input = input(prompt).strip().lower()
         if user_input == 'r':
             continue
-        elif user_input == 'u':
+        elif user_input == 'a':
             all_senders = [sender for sender, _ in sorted_senders]
             print(f"Marking all emails from: {', '.join(all_senders)} as read...")
             mark_senders_read(service, all_senders)

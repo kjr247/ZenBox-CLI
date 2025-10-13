@@ -215,6 +215,22 @@ def display_top_senders_with_unsub(service, email_ids: list, sender_counts: Dict
             continue
         elif user_input == 'a':
             all_senders = [sender for sender, _ in sorted_senders]
+            if unsubscribe_active:
+                import time
+                for sender in all_senders:
+                    unsub_link = sender_unsub.get(sender)
+                    if unsub_link and unsub_link != "-":
+                        if unsub_link.startswith('mailto:'):
+                            print(f"Sending unsubscribe email for {sender}: {unsub_link}")
+                            send_mailto_unsubscribe(unsub_link)
+                            time.sleep(1)
+                        else:
+                            print(f"Opening unsubscribe link for {sender}: {unsub_link}")
+                            try:
+                                webbrowser.open(unsub_link)
+                                time.sleep(1)
+                            except Exception as e:
+                                print(f"Failed to open unsubscribe link for {sender}: {e}")
             print(f"Marking all emails from: {', '.join(all_senders)} as read...")
             mark_senders_read(service, all_senders)
             break

@@ -19,8 +19,9 @@ This script fetches your recent unread emails from Gmail and displays a ranked l
 
 2. **Install required Python packages**
    - Open a terminal in this directory and run:
+  
      ```bash
-   pip install --upgrade google-api-python-client google-auth-httplib2 google-auth-oauthlib rich python-dotenv
+      pip install --upgrade google-api-python-client google-auth-httplib2 google-auth-oauthlib rich python-dotenv
      ```
 
 3. **Set up Google Cloud Project and OAuth Credentials**

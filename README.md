@@ -1,3 +1,10 @@
+5. **Set the Number of Top Senders Displayed**
+
+You can control how many top senders are shown in the table using the `--top-senders` flag (default: 25). For example:
+
+   python zenbox.py --max-emails 700 --top-senders 50
+
+This will display the top 50 senders from up to 700 unread emails.
 
 This script fetches your recent unread emails from Gmail and displays a ranked list of senders by the number of emails received, including unsubscribe links if available.
 
@@ -59,15 +66,17 @@ The script will use these credentials to send unsubscribe emails directly for ma
 
 You can control the script's behavior with these flags:
 
+- `--top-senders N` : Number of top senders to display in the table (default: 25)
 - `--max-emails N` : Maximum number of unread emails to fetch and parse for top senders (default: 1000)
 - `--show-unsubscribe` : Display unsubscribe links for up to `--max-unsubscribe` unread emails (prints links only, does not show top senders table)
 - `--max-unsubscribe N` : Maximum number of unread emails to check for unsubscribe links with `--show-unsubscribe` (default: 100)
 
 **Examples:**
 
-Show top senders from up to 500 unread emails:
+
+Show top 40 senders from up to 500 unread emails:
 ```bash
-python zenbox.py --max-emails 500
+python zenbox.py --max-emails 500 --top-senders 40
 ```
 
 Show unsubscribe links for up to 200 unread emails:
@@ -80,6 +89,5 @@ python zenbox.py --show-unsubscribe --max-unsubscribe 200
 - No secrets are hardcoded; credentials are loaded from your OAuth file and stored in `token.pickle` (which should not be checked into version control).
 - The script only processes unread emails by default.
 - The output table includes the sender, email count, and the first unsubscribe link found for each sender (if available).
-- You can change the number of top senders shown by editing the `TOP_N_SENDERS` constant in the script.
 
 ---

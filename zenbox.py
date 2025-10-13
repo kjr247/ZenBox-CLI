@@ -365,6 +365,7 @@ def main():
     parser.add_argument('--show-unsubscribe', action='store_true', help='Display unsubscribe links for unread emails')
     parser.add_argument('--max-unsubscribe', type=int, default=100, help='Max unread emails to check for unsubscribe links')
     parser.add_argument('--max-emails', type=int, default=MAX_EMAILS, help='Max unread emails to fetch and parse for top senders')
+    parser.add_argument('--top-senders', type=int, default=TOP_N_SENDERS, help='Number of top senders to display (default: 25)')
     args = parser.parse_args()
 
     service = authenticate_gmail()
@@ -385,8 +386,9 @@ def main():
     print(f"Sender parsing took {end_parse - start_parse:.2f} seconds.")
     if not sender_counts:
         sys.exit("No senders found.")
-    print(f"\nTop {TOP_N_SENDERS} senders:\n")
-    display_top_senders_with_unsub(service, email_ids, sender_counts, TOP_N_SENDERS)
+    top_n = args.top_senders
+    print(f"\nTop {top_n} senders:\n")
+    display_top_senders_with_unsub(service, email_ids, sender_counts, top_n)
 
 if __name__ == '__main__':
     main()

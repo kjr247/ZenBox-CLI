@@ -14,6 +14,12 @@ from google.auth.transport.requests import Request
 import pickle
 import argparse
 import webbrowser
+from dotenv import load_dotenv
+load_dotenv()
+import smtplib
+from email.message import EmailMessage
+import re
+import urllib.parse
 from datetime import datetime
 
 SCOPES = [
@@ -137,6 +143,40 @@ def count_senders(service, email_ids: List[str]) -> Dict[str, int]:
 
 
 def display_top_senders_with_unsub(service, email_ids: list, sender_counts: Dict[str, int], top_n: int):
+    import os
+    smtp_user = os.getenv("SMTP_USER")
+    smtp_pass = os.getenv("SMTP_PASS")
+
+    def send_mailto_unsubscribe(mailto_link):
+        nonlocal smtp_user, smtp_pass
+        match = re.match(r'mailto:([^?]+)(\?.*)?', mailto_link)
+        if not match:
+            print("Invalid mailto link.")
+            return
+        to_addr = match.group(1)
+        params = urllib.parse.parse_qs(match.group(2)[1:] if match.group(2) else "")
+        subject = params.get('subject', [''])[0]
+        body = params.get('body', [''])[0]
+
+        if not smtp_user:
+            smtp_user = input("Enter your SMTP email address (for sending unsubscribe): ").strip()
+        if not smtp_pass:
+            import getpass
+            smtp_pass = getpass.getpass("Enter your SMTP password or app password: ")
+
+        msg = EmailMessage()
+        msg['Subject'] = subject or "Unsubscribe"
+        msg['From'] = smtp_user
+        msg['To'] = to_addr
+        msg.set_content(body or "Please unsubscribe me from this list.")
+
+        try:
+            with smtplib.SMTP_SSL('smtp.gmail.com', 465) as smtp:
+                smtp.login(smtp_user, smtp_pass)
+                smtp.send_message(msg)
+            print(f"Unsubscribe email sent to {to_addr}")
+        except Exception as e:
+            print(f"Failed to send unsubscribe email to {to_addr}: {e}")
     """Display the top N senders in a table, including the first unsubscribe link from the already fetched unread emails."""
     sorted_senders = sender_counts.most_common(top_n)
     sender_unsub = {sender: '' for sender, _ in sorted_senders}
@@ -195,12 +235,17 @@ def display_top_senders_with_unsub(service, email_ids: list, sender_counts: Dict
                     for sender in selected_senders:
                         unsub_link = sender_unsub.get(sender)
                         if unsubscribe_active and unsub_link and unsub_link != "-":
-                            print(f"Opening unsubscribe link for {sender}: {unsub_link}")
-                            try:
-                                webbrowser.open(unsub_link)
-                                time.sleep(1)  # Add a 1-second delay between openings
-                            except Exception as e:
-                                print(f"Failed to open unsubscribe link for {sender}: {e}")
+                            if unsub_link.startswith('mailto:'):
+                                print(f"Sending unsubscribe email for {sender}: {unsub_link}")
+                                send_mailto_unsubscribe(unsub_link)
+                                time.sleep(1)
+                            else:
+                                print(f"Opening unsubscribe link for {sender}: {unsub_link}")
+                                try:
+                                    webbrowser.open(unsub_link)
+                                    time.sleep(1)  # Add a 1-second delay between openings
+                                except Exception as e:
+                                    print(f"Failed to open unsubscribe link for {sender}: {e}")
                     print(f"Marking all emails from: {', '.join(selected_senders)} as read...")
                     mark_senders_read(service, selected_senders)
                     # Remove marked senders from sorted_senders and sender_unsub

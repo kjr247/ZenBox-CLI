@@ -13,10 +13,28 @@ This script fetches your recent unread emails from Gmail and displays a ranked l
 2. **Install required Python packages**
    - Open a terminal in this directory and run:
      ```bash
-     pip install --upgrade google-api-python-client google-auth-httplib2 google-auth-oauthlib rich
+   pip install --upgrade google-api-python-client google-auth-httplib2 google-auth-oauthlib rich python-dotenv
      ```
 
 3. **Set up Google Cloud Project and OAuth Credentials**
+4. **(Optional) Configure SMTP for Unsubscribe**
+
+To enable automatic unsubscribe for `mailto:` links, you must set up a Gmail App Password and add it to a `.env` file:
+
+   SMTP_USER=your_email@gmail.com
+   SMTP_PASS=your_app_password
+
+**How to create a Gmail App Password:**
+
+- The scripe will use these credentials to send unsubscribe emails directly for mailto: links. If not set, you will be prompted at runtime. **Never commit `.env` to version control.
+
+1. Go to https://myaccount.google.com/security
+2. Enable 2-Step Verification if you haven't already.
+3. Under "Signing in to Google," select **App Passwords**.
+4. Choose **Mail** as the app and **Other** (or your device) as the device, then click **Generate**.
+5. Copy the generated 16-character password and use it as `SMTP_PASS` in your `.env` file.
+
+The script will use these credentials to send unsubscribe emails directly for mailto: links. If not set, you will be prompted at runtime. **Never commit `.env` to version control.**
    - Go to the [Google Cloud Console](https://console.cloud.google.com/apis/credentials)
    - Create a new project (or select an existing one)
    - Click "+ CREATE CREDENTIALS" and choose "OAuth client ID"

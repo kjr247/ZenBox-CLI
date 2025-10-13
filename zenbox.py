@@ -22,7 +22,7 @@ SCOPES = [
 CREDENTIALS_FILE = 'ZenboxDesktop.client_secret_339182038683-r3aqgdrhqt30uk8on0na17upm31p8upe.apps.googleusercontent.com.json'
 TOKEN_FILE = 'token.pickle'
 MAX_EMAILS = 1000
-TOP_N_SENDERS = 25
+TOP_N_SENDERS = 100
 
 def authenticate_gmail():
     """Authenticate with Gmail API using OAuth2."""

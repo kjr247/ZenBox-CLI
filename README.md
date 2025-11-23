@@ -29,7 +29,7 @@ pip install --upgrade google-api-python-client google-auth-httplib2 google-auth-
 6. Name it (e.g., "Zenbox Email Analyzer")
 7. Click **Create**
 8. Click **Download JSON** on the credentials you just created
-9. Save the file as `ZenboxDesktop.client_secret_...json` (or update the script to use your filename) in this directory
+9. Save the file as `ZenboxDesktop.client_secret_339182038683-r3aqgdrhqt30uk8on0na17upm31p8upe.apps.googleusercontent.com.json` (or update the script to use your filename) in this directory. **The filename must match exactly as shown, or the script will not run.** **You may already have this file created and backed up and encrypted somewhere else like google docs.**
 10. Enable the Gmail API for your project:
     - Go to **APIs & Services** > **Library**
     - Search for **Gmail API** and click **Enable**
@@ -109,6 +109,14 @@ python zenbox.py --show-unsubscribe --max-unsubscribe 200
 - No secrets are hardcoded; credentials are loaded from your OAuth file and stored in `token.pickle` (which should not be checked into version control).
 - The script only processes unread emails by default.
 - The output table includes the sender, email count, and the first unsubscribe link found for each sender (if available).
+
+## Troubleshooting
+
+- If you see an error about a missing credentials file (e.g., `Missing ZenboxDesktop.client_secret_339182038683-r3aqgdrhqt30uk8on0na17upm31p8upe.apps.googleusercontent.com.json`), ensure you have downloaded the OAuth credentials and named the file exactly as shown above.
+- All required Python packages must be installed. If you see missing package errors, run:
+  ```bash
+  pip install --upgrade google-api-python-client google-auth-httplib2 google-auth-oauthlib rich python-dotenv
+  ```
 
 ## ☕💛☕🤝Buy Me A Coffee
 

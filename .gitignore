@@ -96,4 +96,6 @@ ehthumbs.db
 Desktop.ini
 
 # Other
+.lh/*
 *.log
+token.pickle.bak

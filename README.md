@@ -109,3 +109,37 @@ python zenbox.py --show-unsubscribe --max-unsubscribe 200
 - No secrets are hardcoded; credentials are loaded from your OAuth file and stored in `token.pickle` (which should not be checked into version control).
 - The script only processes unread emails by default.
 - The output table includes the sender, email count, and the first unsubscribe link found for each sender (if available).
+
+---
+
+## Troubleshooting Authentication Issues
+
+If you see an error like `invalid_grant: Bad Request` when running the script, your authentication token may be expired or revoked.
+
+**To fix:**
+
+1. Backup your current token file (so you can restore it if needed):
+    ```bash
+    cp token.pickle token.pickle.bak
+    ```
+    (On Windows, use `copy token.pickle token.pickle.bak` in Command Prompt or `cp` in Git Bash.)
+
+2. Delete or rename `token.pickle` (the script will create a new one after re-authentication):
+    ```bash
+    mv token.pickle token.pickle.old
+    ```
+    (Or just delete it: `del token.pickle`)
+
+3. Run the script again:
+    ```bash
+    python zenbox.py
+    ```
+    Follow the prompts to re-authenticate with Google.
+
+**Tip:** You can automate the backup step by running:
+```bash
+python backup_token.py
+```
+if you have the included `backup_token.py` script.
+
+If you continue to have issues, check that your OAuth credentials file matches your Google Cloud Console settings and that the Gmail API is enabled.

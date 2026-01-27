@@ -68,7 +68,44 @@ When running the Zenbox script, you can interact with the table using the follow
 | `e`                 | Exit the application                                                   |
 | `t`                 | Toggle unsubscribe (ON/OFF) for mailto: and HTTP unsubscribe links     |
 | Comma numbers (e.g. `1,3,5`) | Mark selected senders as read (and unsubscribe if enabled)      |
+| `vN` (e.g. `v1`)    | View all emails from sender N in Gmail (opens browser, bottom-up order) |
+| `v`                 | Open Gmail for the current 'next target sender' (bottom-most sender)   |
+| `n`                 | Mark the current 'next target sender' (bottom-most) as read and advance |
+| `m`                 | Mark and (if enabled) unsubscribe the current 'next target sender' only |
+| `set-account N`     | Set the Gmail account index for links (e.g., `set-account 1` for /u/1) |
 | `Enter` (empty)     | Continue without taking action                                         |
+
+
+### Navigating and Managing Senders
+
+- **`vN` (e.g. `v1`)**: Opens Gmail for the sender at position N in the table (bottom-most sender is 1, next is 2, etc.).
+- **`v`**: Opens Gmail for the current 'next target sender' (bottom-most sender in the table).
+- **`n`**: Marks the current 'next target sender' (bottom-most sender) as read and advances the target upward.
+- **`m`**: Marks and (if unsubscribe is ON) unsubscribes the current 'next target sender' only, then advances.
+
+The current 'next target sender' is always shown in the status line. Use `n`, `m`, or `v` repeatedly to process or view senders from the bottom up.
+
+#### Example:
+
+```
+n
+m
+v
+v1
+```
+
+This sequence marks the bottom sender as read, then marks and unsubscribes the next, then opens Gmail for the new bottom sender, then opens Gmail for the sender at index 1.
+
+### Changing the Gmail Account Index
+
+If you use multiple Gmail accounts, you can set which account is used for links by typing:
+
+```
+set-account 1
+```
+This will use `/u/1` in Gmail URLs. The current account index is always shown in the CLI status area.
+
+You can also set the default by editing or deleting `zenbox_config.json` in the project directory.
 
 ## Flags
 

@@ -3,6 +3,7 @@
 
 import os
 import sys
+import json
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import collections
 from typing import List, Dict
@@ -16,6 +17,25 @@ import argparse
 import webbrowser
 from dotenv import load_dotenv
 load_dotenv()
+
+# Config for Gmail account index
+CONFIG_FILE = 'zenbox_config.json'
+DEFAULT_ACCOUNT_INDEX = 0
+
+def load_account_index():
+    if os.path.exists(CONFIG_FILE):
+        try:
+            with open(CONFIG_FILE, 'r') as f:
+                data = json.load(f)
+                return int(data.get('gmail_account_index', DEFAULT_ACCOUNT_INDEX))
+        except Exception:
+            return DEFAULT_ACCOUNT_INDEX
+    return DEFAULT_ACCOUNT_INDEX
+
+def save_account_index(idx):
+    data = {'gmail_account_index': idx}
+    with open(CONFIG_FILE, 'w') as f:
+        json.dump(data, f)
 import smtplib
 from email.message import EmailMessage
 import re
@@ -141,8 +161,25 @@ def count_senders(service, email_ids: List[str]) -> Dict[str, int]:
             print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] Processed {idx} emails...")
     return sender_counts, sender_to_ids
 
+def escape(text):
+    return text.replace("[", "\\[")
 
 def display_top_senders_with_unsub(service, email_ids: list, sender_counts: Dict[str, int], top_n: int):
+    def unsubscribe_sender_action(sender, unsub_link):
+        if unsubscribe_active and unsub_link and unsub_link != "-":
+            import time
+            if unsub_link.startswith('mailto:'):
+                print(f"Sending unsubscribe email for {sender}: {unsub_link}")
+                send_mailto_unsubscribe(unsub_link)
+                time.sleep(1)
+            else:
+                print(f"Opening unsubscribe link for {sender}: {unsub_link}")
+                try:
+                    webbrowser.open(unsub_link)
+                    time.sleep(1)
+                except Exception as e:
+                    print(f"Failed to open unsubscribe link for {sender}: {e}")
+
     import os
     smtp_user = os.getenv("SMTP_USER")
     smtp_pass = os.getenv("SMTP_PASS")
@@ -191,7 +228,12 @@ def display_top_senders_with_unsub(service, email_ids: list, sender_counts: Dict
                     if link.startswith('http') or link.startswith('mailto:'):
                         sender_unsub[sender] = link
                         break
+
     def print_table():
+        if 0 < next_bottom_idx <= len(sorted_senders):
+            current_target_sender = sorted_senders[next_bottom_idx - 1][0]
+        else:
+            current_target_sender = "-"
         console = Console()
         table = Table(title=f"Top {top_n} Senders (Unread Emails)")
         table.add_column("Sender", style="cyan", no_wrap=True, width=80)
@@ -199,41 +241,74 @@ def display_top_senders_with_unsub(service, email_ids: list, sender_counts: Dict
         table.add_column("Unsubscribe Link", style="green")
         for idx, (sender, count) in enumerate(sorted_senders, 1):
             unsub = sender_unsub[sender] if sender_unsub[sender] else "-"
-            # Invert the numbering: 100 at top, 1 at bottom
             display_idx = top_n - idx + 1
             table.add_row(f"{display_idx}. {sender}", str(count), unsub)
         console.clear()
         console.print(table)
+        # Colorize config/account index status and tags
+        console.print(
+            f"\n[bold magenta]Config:[/] "
+            f"[yellow]{escape('[set-account N]')}[/yellow] — [cyan]({account_index})[/cyan], "
+            f"[yellow]{escape('[T]')}[/yellow] toggle UNSUBSCRIBE — [cyan]{'ON' if unsubscribe_active else 'OFF'}[/cyan], "
+            f"[yellow]{escape(' [Current Target Sender]')}[/yellow] — [cyan]{current_target_sender}[/cyan]"
+        )
 
     unsubscribe_active = True
+    account_index = load_account_index()
+    next_bottom_idx = len(sorted_senders)
     while True:
         print_table()
-        prompt = ("\nOptions: [r]efresh table, [a] mark ALL as read (and unsubscribe), [e] escape, [t] toggle unsubscribe (currently "
-                  f"{'ON' if unsubscribe_active else 'OFF'}" + "), or comma-separated numbers to mark as read, Enter to continue: ")
-        user_input = input(prompt).strip().lower()
+        console = Console()
+        # Colorize tags [] as yellow, () as cyan, options as bold white
+        prompt = (
+            "\nOptions: "
+            + "[yellow]" + escape("[A]") + "[/yellow] MARKALLASREAD "
+            + ("[cyan](+UNSUBSCRIBE)[/cyan] " if unsubscribe_active else "")
+            + "[yellow]" + escape("[E]") + "[/yellow]scape, "
+            + "[yellow]" + escape("[vN]") + "[/yellow] view sender web ex: v1, "
+            + "[yellow]" + escape("[N]") + "[/yellow]ext target sender, "
+            + "[yellow]" + escape("[V]") + "[/yellow]iew sender web, "
+            + "[yellow]" + escape("[M]") + "[/yellow]ARKASREAD, "
+            + "[yellow]" + escape("[set-account N]") + "[/yellow] Gmail account index, "
+            + "[yellow]" + escape("[T]") + "[/yellow]oggle unsubscribe [cyan](ON/OFF)[/cyan], "
+            + "[yellow]" + escape("[R]") + "[/yellow]esize, "
+            + "[yellow]" + escape("[1,2,3,4...]") + "[/yellow] to mark as read, "
+            + "[bold white]Enter[/bold white] to continue: "
+        )
+        user_input = console.input(prompt).strip().lower()
         if user_input == 'r':
             continue
         elif user_input == 'a':
             all_senders = [sender for sender, _ in sorted_senders]
             if unsubscribe_active:
-                import time
                 for sender in all_senders:
                     unsub_link = sender_unsub.get(sender)
-                    if unsub_link and unsub_link != "-":
-                        if unsub_link.startswith('mailto:'):
-                            print(f"Sending unsubscribe email for {sender}: {unsub_link}")
-                            send_mailto_unsubscribe(unsub_link)
-                            time.sleep(1)
-                        else:
-                            print(f"Opening unsubscribe link for {sender}: {unsub_link}")
-                            try:
-                                webbrowser.open(unsub_link)
-                                time.sleep(1)
-                            except Exception as e:
-                                print(f"Failed to open unsubscribe link for {sender}: {e}")
+                    unsubscribe_sender_action(sender, unsub_link)
             print(f"Marking all emails from: {', '.join(all_senders)} as read...")
             mark_senders_read(service, all_senders)
             break
+        elif user_input == 'v':
+            if next_bottom_idx > 0 and next_bottom_idx <= len(sorted_senders):
+                sender = sorted_senders[next_bottom_idx - 1][0]
+                gmail_url = f"https://mail.google.com/mail/u/{account_index}/#search/{sender}"
+                print(f"Opening Gmail for sender {sender} at {gmail_url}")
+                try:
+                    webbrowser.open(gmail_url)
+                except Exception as e:
+                    print(f"Failed to open browser: {e}")
+            else:
+                print("No more senders to open from the bottom.")
+            continue
+        elif user_input == 'n':
+            if next_bottom_idx > 0 and next_bottom_idx <= len(sorted_senders):
+                sender = sorted_senders[next_bottom_idx - 1][0]
+                try:
+                    next_bottom_idx -= 1
+                except Exception as e:
+                    print(f"Failed to open browser: {e}")
+            else:
+                print("No more senders to open from the bottom.")
+            continue
         elif user_input == 'e':
             print("Exiting...")
             break
@@ -243,11 +318,53 @@ def display_top_senders_with_unsub(service, email_ids: list, sender_counts: Dict
             continue
         elif user_input == '':
             break
+        elif user_input.startswith('set-account '):
+            try:
+                new_idx = int(user_input.split('set-account ')[1].strip())
+                account_index = new_idx
+                save_account_index(account_index)
+                print(f"Gmail account index set to {account_index} (links will use /u/{account_index})")
+            except Exception as e:
+                print(f"Invalid account index: {e}")
+            continue
+        elif user_input.startswith('v') and user_input[1:].isdigit():
+            idx = int(user_input[1:])
+            if 1 <= idx <= len(sorted_senders):
+                sender = sorted_senders[top_n - idx][0]
+                gmail_url = f"https://mail.google.com/mail/u/{account_index}/#search/{sender}"
+                print(f"Opening Gmail for sender {sender} at {gmail_url}")
+                try:
+                    webbrowser.open(gmail_url)
+                    next_bottom_idx = sorted_senders[top_n - idx]
+                except Exception as e:
+                    print(f"Failed to open browser: {e}")
+            else:
+                print("Invalid sender index.")
+            continue
+        elif user_input == 'm':
+            # Unsubscribe logic for the current sender (like 'a', but only one sender)
+            unsub_link = sender_unsub.get(sender)
+            unsubscribe_sender_action(sender, unsub_link)
+            print(f"Marking all emails from: {sender} as read...")
+            mark_senders_read(service, [sender])
+            # Remove sender from sorted_senders and sender_unsub
+            sorted_senders = [(s, c) for (s, c) in sorted_senders if s != sender]
+            sender_unsub.pop(sender, None)
+            # Adjust next_bottom_idx
+            next_bottom_idx -= 1
+            if next_bottom_idx < 1:
+                next_bottom_idx = len(sorted_senders)
+            if not sorted_senders:
+                print("No more senders to display.")
+                break
+
+            else:
+                print("Invalid sender index.")
+            continue
         else:
             # Only allow comma-separated numbers for marking as read
             try:
                 indices = [int(x) for x in user_input.split(",") if x.strip().isdigit()]
-                # Since the display is inverted, map 100 to index 0, 99 to 1, etc.
                 selected_senders = [sorted_senders[top_n - i][0] for i in indices if 1 <= i <= len(sorted_senders)]
                 if selected_senders:
                     import time
@@ -262,12 +379,11 @@ def display_top_senders_with_unsub(service, email_ids: list, sender_counts: Dict
                                 print(f"Opening unsubscribe link for {sender}: {unsub_link}")
                                 try:
                                     webbrowser.open(unsub_link)
-                                    time.sleep(1)  # Add a 1-second delay between openings
+                                    time.sleep(1)
                                 except Exception as e:
                                     print(f"Failed to open unsubscribe link for {sender}: {e}")
                     print(f"Marking all emails from: {', '.join(selected_senders)} as read...")
                     mark_senders_read(service, selected_senders)
-                    # Remove marked senders from sorted_senders and sender_unsub
                     sorted_senders = [(s, c) for (s, c) in sorted_senders if s not in selected_senders]
                     for s in selected_senders:
                         sender_unsub.pop(s, None)
